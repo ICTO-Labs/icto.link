@@ -1,19 +1,19 @@
 {
   "canisters": {
-    "icto_link_backend": {
-      "main": "src/icto_link_backend/main.mo",
+    "backend": {
+      "main": "src/backend/main.mo",
       "type": "motoko"
     },
-    "icto_link_frontend": {
+    "frontend": {
       "dependencies": [
-        "icto_link_backend"
+        "backend"
       ],
       "frontend": {
-        "entrypoint": "src/icto_link_frontend/src/index.html"
+        "entrypoint": "src/frontend/src/index.html"
       },
       "source": [
-        "src/icto_link_frontend/assets",
-        "dist/icto_link_frontend/"
+        "src/frontend/assets",
+        "dist/frontend/"
       ],
       "type": "assets"
     }
