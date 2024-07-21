@@ -13,6 +13,8 @@ import Debug "mo:base/Debug";
 actor LinkShortener {
 	type ShortLink = {
 		owner: Principal;
+		path: Text;//In the future, we can use this to store the path of the link
+		canisterId: Text;
 		targetUrl: Text;
 		title: Text;
 		keywords: [Text];
@@ -22,12 +24,15 @@ actor LinkShortener {
 		updatedAt: Time.Time;
 	};
 
+
+	private var ICTO_BASE_LINK:Text = "https://icto.app/";
 	private stable var _links:[(Text, ShortLink)] = [];
 	private var links = HashMap.HashMap<Text, ShortLink>(0, Text.equal, Text.hash);
 
 	public shared(msg) func createLink(
 		shortName: Text, 
-		targetUrl: Text, 
+		path: Text, 
+		canisterId: Text, 
 		title: ?Text, 
 		keywords: ?[Text], 
 		imagePreview: ?Text
@@ -41,10 +46,12 @@ actor LinkShortener {
 
 		let newLink : ShortLink = {
 			owner = msg.caller;
-			targetUrl = targetUrl;
+			path = path;
+			canisterId = canisterId;
 			title = Option.get(title, "ICTO Short Link");
+			targetUrl = "";//Default not set
 			keywords = Option.get(keywords, []);
-			imagePreview = Option.get(imagePreview, "default-image.jpg");
+			imagePreview = Option.get(imagePreview, "/default-image.png");
 			clickCount = 0;
 			createdAt = Time.now();
 			updatedAt = Time.now();
@@ -54,22 +61,51 @@ actor LinkShortener {
 		true
 	};
 
+
+	public shared({caller}) func getLinkByCanisterId(path: Text, canisterId: Text) : async ?[(Text, ShortLink)] {
+		//Iterate through the links to find the link with the canisterId
+		let results = Iter.toArray(
+            Iter.filter(
+                links.entries(),
+                func ((_, link) : (Text, ShortLink)) : Bool {
+                    link.canisterId == canisterId and Text.equal(link.path, path) and Principal.equal(link.owner, caller)
+                }
+            )
+        );
+        
+        if (results.size() > 0) {
+            ?results
+        } else {
+            null
+        }
+	};
+
 	public query func getLink(shortName: Text) : async ?ShortLink {
-		links.get(shortName)
+		return switch (links.get(shortName)) {
+			case (null) { null };
+			case (?link) {
+				?{
+					link with
+					targetUrl = ICTO_BASE_LINK # link.path # "/" # link.canisterId # "?r=" # Principal.toText(link.owner);
+				}
+			};
+		};
 	};
 	public func incrementClickCount(shortName: Text) : async () {
 		switch (links.get(shortName)) {
 		case (null) { };
 		case (?link) {
 			let updatedLink = {
-			owner = link.owner;
-			targetUrl = link.targetUrl;
-			title = link.title;
-			keywords = link.keywords;
-			imagePreview = link.imagePreview;
-			clickCount = link.clickCount + 1;
-			createdAt = link.createdAt;
-			updatedAt = Time.now();
+				owner = link.owner;
+				path = link.path;
+				canisterId = link.canisterId;
+				targetUrl = link.targetUrl;
+				title = link.title;
+				keywords = link.keywords;
+				imagePreview = link.imagePreview;
+				clickCount = link.clickCount + 1;
+				createdAt = link.createdAt;
+				updatedAt = Time.now();
 			};
 			links.put(shortName, updatedLink);
 		};
@@ -77,7 +113,8 @@ actor LinkShortener {
 	};
 	public shared(msg) func updateLink(
 		shortName: Text, 
-		targetUrl: ?Text, 
+		path: ?Text, 
+		canisterId: ?Text, 
 		title: ?Text, 
 		keywords: ?[Text], 
 		imagePreview: ?Text
@@ -89,14 +126,16 @@ actor LinkShortener {
 					return false; // Only owner can update
 				};
 				let updatedLink = {
-				owner = link.owner;
-				targetUrl = Option.get(targetUrl, link.targetUrl);
-				title = Option.get(title, link.title);
-				keywords = Option.get(keywords, link.keywords);
-				imagePreview = Option.get(imagePreview, link.imagePreview);
-				clickCount = link.clickCount;
-				createdAt = link.createdAt;
-				updatedAt = Time.now();
+					owner = link.owner;
+					path = Option.get(path, link.path);
+					targetUrl = Option.get(path, link.targetUrl);
+					canisterId = Option.get(canisterId, link.canisterId);
+					title = Option.get(title, link.title);
+					keywords = Option.get(keywords, link.keywords);
+					imagePreview = Option.get(imagePreview, link.imagePreview);
+					clickCount = link.clickCount;
+					createdAt = link.createdAt;
+					updatedAt = Time.now();
 				};
 				links.put(shortName, updatedLink);
 				true
@@ -128,7 +167,7 @@ actor LinkShortener {
 		switch (links.get(shortName)) {
 		case (null) { null };
 		case (?link) {
-			?link.targetUrl
+			?link.canisterId
 		};
 		};
 	};
